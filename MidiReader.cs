@@ -55,78 +55,62 @@ public class MidiReader(string midiFilePath)
         return measures;
     }
 
-    public Tuple<List<NoteOnEvent>, Dictionary<string, List<NoteOnEvent>>> ReadDrumAndInst()
+    public Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>> ReadDrumAndInst()
     {
-        List<NoteOnEvent> drumEvents = [];
+        Dictionary<string, List<NoteOnEvent>> drumEvents = [];
         Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument = [];
         for (int trackIndex = 0; trackIndex < midiFile.Events.Count(); trackIndex++)
         {
             IList<MidiEvent> trackEvents = midiFile.Events[trackIndex];
 
+            string instrument;
             if (trackEvents.FirstOrDefault() is TextEvent textEvent)
             {
+                instrument = textEvent.Text;
                 if (textEvent.Text.Contains("drum", StringComparison.InvariantCultureIgnoreCase) ||
                     trackEvents.Any(x => x.Channel == 10))
                 {
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            drumEvents.Add(noteOnEvent);
-                        }
-                    }
+                    InsertToDictionary(instrument, drumEvents, trackEvents);
                 }
                 else
                 {
-                    string instrument = textEvent.Text;
-                    if (!otherEventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
-                    {
-                        value = [];
-                        otherEventsByInstrument[instrument] = value;
-                    }
-
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            value.Add(noteOnEvent);
-                        }
-                    }
+                    InsertToDictionary(instrument, otherEventsByInstrument, trackEvents);
                 }
             }
             else
             {
+                instrument = trackEvents.FirstOrDefault().Channel.ToString();
                 if (trackEvents.Any(x => x.Channel == 10))
                 {
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-
-                        {
-                            drumEvents.Add(noteOnEvent);
-                        }
-                    }
+                    InsertToDictionary(instrument, drumEvents, trackEvents);
                 }
                 else
                 {
-                    string instrument = trackEvents.FirstOrDefault().Channel.ToString();
-                    if (!otherEventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
-                    {
-                        value = [];
-                        otherEventsByInstrument[instrument] = value;
-                    }
-
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            value.Add(noteOnEvent);
-                        }
-                    }
+                    InsertToDictionary(instrument, otherEventsByInstrument, trackEvents);
                 }
             }
         }
 
-        return new Tuple<List<NoteOnEvent>, Dictionary<string, List<NoteOnEvent>>>(drumEvents, otherEventsByInstrument);
+        return new Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>>(drumEvents, otherEventsByInstrument);
+    }
+
+    static void InsertToDictionary(
+        string instrument, 
+        Dictionary<string, List<NoteOnEvent>> eventsByInstrument, 
+        IList<MidiEvent> trackEvents)
+    {
+        if (!eventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
+        {
+            value = [];
+            eventsByInstrument[instrument] = value;
+        }
+
+        foreach (MidiEvent trackEvent in trackEvents)
+        {
+            if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
+            {
+                value.Add(noteOnEvent);
+            }
+        }
     }
 }

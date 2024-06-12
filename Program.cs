@@ -7,16 +7,23 @@ public class Program
     public static void Main(string[] args)
     {
         string midiPath = args[0];
-        
+
         Console.WriteLine($"Reading {midiPath}");
         MidiReader midiReader = new MidiReader(midiPath);
 
         List<Tuple<long, long>> measures = midiReader.ExtractMeasures();
 
-        (List<NoteOnEvent> drumEvents, Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument) = 
+        (Dictionary<string, List<NoteOnEvent>> drumEvents,
+                Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument) =
             midiReader.ReadDrumAndInst();
 
-        List<List<int>> drumPatterns = GeneratePatterns(drumEvents, measures);
+        Dictionary<string, List<List<int>>> drumPatterns = [];
+        foreach (KeyValuePair<string, List<NoteOnEvent>> entry in drumEvents)
+        {
+            List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
+            drumPatterns[entry.Key] = patterns;
+        }
+        
         Dictionary<string, List<List<int>>> otherPatternsByInstrument = [];
         foreach (KeyValuePair<string, List<NoteOnEvent>> entry in otherEventsByInstrument)
         {
@@ -39,7 +46,7 @@ public class Program
         File.WriteAllText(
             Path.Combine(parentDirectory, midiFileWithoutExtension + "-inst-patterns.json"),
             otherPatternsByInstrumentJson);
-        
+
         Console.WriteLine($"Wrote to {parentDirectory}");
     }
 
@@ -69,7 +76,7 @@ public class Program
                     noteSequenceByMeasure[j],
                     measures[i].Item1,
                     measures[j].Item1);
-                
+
                 long similarityS2S1 = Util.CalculateSimilarity(
                     noteSequenceByMeasure[j],
                     noteSequenceByMeasure[i],
