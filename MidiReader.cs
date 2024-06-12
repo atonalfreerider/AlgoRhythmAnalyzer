@@ -18,36 +18,44 @@ public class MidiReader(string midiFilePath)
         // List to hold start and end times of each measure in ticks
         List<Tuple<long, long>> measures = [];
 
-        // Iterate through the MIDI events
-        foreach (IList<MidiEvent>? track in midiFile.Events)
+        // Aggregate all events from all tracks
+        List<MidiEvent> allEvents = [];
+        foreach (IList<MidiEvent> track in midiFile.Events)
         {
-            int currentMeasure = 0;
-            int ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
+            allEvents.AddRange(track);
+        }
 
-            foreach (MidiEvent midiEvent in track)
+        // Sort all events by their absolute time
+        allEvents.Sort((e1, e2) => e1.AbsoluteTime.CompareTo(e2.AbsoluteTime));
+
+        // Initialize variables to keep track of the current measure and ticks per measure
+        int currentMeasure = 0;
+        int ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
+
+        // Iterate through the aggregated and sorted MIDI events
+        foreach (MidiEvent midiEvent in allEvents)
+        {
+            if (midiEvent is TimeSignatureEvent ts)
             {
-                if (midiEvent is TimeSignatureEvent ts)
-                {
-                    numerator = ts.Numerator;
-                    denominator = (int)Math.Pow(2, ts.Denominator);
-                    ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
-                }
+                numerator = ts.Numerator;
+                denominator = (int)Math.Pow(2, ts.Denominator);
+                ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
+            }
 
-                // Check if we reached the end of the measure
-                if (midiEvent.AbsoluteTime / ticksPerMeasure > currentMeasure)
-                {
-                    long measureStartTime = currentMeasure * ticksPerMeasure;
-                    long measureEndTime = (currentMeasure + 1) * ticksPerMeasure;
-                    measures.Add(new Tuple<long, long>(measureStartTime, measureEndTime));
-                    currentMeasure++;
-                }
+            // Check if we reached the end of the measure
+            if (midiEvent.AbsoluteTime / ticksPerMeasure > currentMeasure)
+            {
+                long measureStartTime = currentMeasure * ticksPerMeasure;
+                long measureEndTime = (currentMeasure + 1) * ticksPerMeasure;
+                measures.Add(new Tuple<long, long>(measureStartTime, measureEndTime));
+                currentMeasure++;
             }
         }
 
         return measures;
     }
 
-    public Tuple<List<NoteOnEvent>, Dictionary<string,List<NoteOnEvent>>> ReadDrumAndInst()
+    public Tuple<List<NoteOnEvent>, Dictionary<string, List<NoteOnEvent>>> ReadDrumAndInst()
     {
         List<NoteOnEvent> drumEvents = [];
         Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument = [];

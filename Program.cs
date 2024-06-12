@@ -7,6 +7,8 @@ public class Program
     public static void Main(string[] args)
     {
         string midiPath = args[0];
+        
+        Console.WriteLine($"Reading {midiPath}");
         MidiReader midiReader = new MidiReader(midiPath);
 
         List<Tuple<long, long>> measures = midiReader.ExtractMeasures();
@@ -37,6 +39,8 @@ public class Program
         File.WriteAllText(
             Path.Combine(parentDirectory, midiFileWithoutExtension + "-inst-patterns.json"),
             otherPatternsByInstrumentJson);
+        
+        Console.WriteLine($"Wrote to {parentDirectory}");
     }
 
     static List<List<int>> GeneratePatterns(List<NoteOnEvent> events, List<Tuple<long, long>> measures)
@@ -60,13 +64,19 @@ public class Program
             Dictionary<int, long> similarityRankings = [];
             for (int j = i + 1; j < noteSequenceByMeasure.Count; j++)
             {
-                long similarity = Util.CalculateSimilarity(
+                long similarityS1S2 = Util.CalculateSimilarity(
                     noteSequenceByMeasure[i],
                     noteSequenceByMeasure[j],
                     measures[i].Item1,
                     measures[j].Item1);
+                
+                long similarityS2S1 = Util.CalculateSimilarity(
+                    noteSequenceByMeasure[j],
+                    noteSequenceByMeasure[i],
+                    measures[j].Item1,
+                    measures[i].Item1);
 
-                similarityRankings[j] = similarity;
+                similarityRankings[j] = similarityS1S2 + similarityS2S1;
             }
 
             if (similarityRankings.Count == 0 || similarityRankings.Values.Max() <= 0)

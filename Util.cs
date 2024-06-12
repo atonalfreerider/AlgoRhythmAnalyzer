@@ -106,8 +106,6 @@ public static class Util
         return score;
     }
 
-
-
     public static List<NoteOnEvent> NotesInAMeasure(List<NoteOnEvent> allNotes, long startTick, long endTick)
     {
         return allNotes.Where(n => n.AbsoluteTime >= startTick && n.AbsoluteTime < endTick).ToList();
