@@ -7,79 +7,12 @@ public class Program
     public static void Main(string[] args)
     {
         string midiPath = args[0];
+        MidiReader midiReader = new MidiReader(midiPath);
 
-        MidiFile midi = new(midiPath, false);
-        List<Tuple<long, long>> measures = Util.ExtractMeasures(midi);
+        List<Tuple<long, long>> measures = midiReader.ExtractMeasures();
 
-        List<NoteOnEvent> drumEvents = [];
-        Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument = [];
-        for (int trackIndex = 0; trackIndex < midi.Events.Count(); trackIndex++)
-        {
-            IList<MidiEvent> trackEvents = midi.Events[trackIndex];
-
-            if (trackEvents.FirstOrDefault() is TextEvent textEvent)
-            {
-                if (textEvent.Text.Contains("drum", StringComparison.InvariantCultureIgnoreCase) ||
-                    trackEvents.Any(x => x.Channel == 10))
-                {
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            drumEvents.Add(noteOnEvent);
-                        }
-                    }
-                }
-                else
-                {
-                    string instrument = textEvent.Text;
-                    if (!otherEventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
-                    {
-                        value = [];
-                        otherEventsByInstrument[instrument] = value;
-                    }
-
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            value.Add(noteOnEvent);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (trackEvents.Any(x => x.Channel == 10))
-                {
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-
-                        {
-                            drumEvents.Add(noteOnEvent);
-                        }
-                    }
-                }
-                else
-                {
-                    string instrument = trackEvents.FirstOrDefault().Channel.ToString();
-                    if (!otherEventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
-                    {
-                        value = [];
-                        otherEventsByInstrument[instrument] = value;
-                    }
-
-                    foreach (MidiEvent trackEvent in trackEvents)
-                    {
-                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
-                        {
-                            value.Add(noteOnEvent);
-                        }
-                    }
-                }
-            }
-        }
+        (List<NoteOnEvent> drumEvents, Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument) = 
+            midiReader.ReadDrumAndInst();
 
         List<List<int>> drumPatterns = GeneratePatterns(drumEvents, measures);
         Dictionary<string, List<List<int>>> otherPatternsByInstrument = [];
@@ -88,7 +21,7 @@ public class Program
             List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
             otherPatternsByInstrument[entry.Key] = patterns;
         }
-        
+
         string parentDirectory = Path.GetDirectoryName(args[0]);
         string midiFileWithoutExtension = Path.GetFileNameWithoutExtension(args[0]);
 
@@ -97,14 +30,13 @@ public class Program
         File.WriteAllText(
             Path.Combine(parentDirectory, midiFileWithoutExtension + "-drum-patterns.json"),
             drumPatternsJson);
-        
-        string otherPatternsByInstrumentJson = JsonConvert.SerializeObject(otherPatternsByInstrument, Formatting.Indented);
+
+        string otherPatternsByInstrumentJson =
+            JsonConvert.SerializeObject(otherPatternsByInstrument, Formatting.Indented);
 
         File.WriteAllText(
             Path.Combine(parentDirectory, midiFileWithoutExtension + "-inst-patterns.json"),
             otherPatternsByInstrumentJson);
-
-
     }
 
     static List<List<int>> GeneratePatterns(List<NoteOnEvent> events, List<Tuple<long, long>> measures)
@@ -117,14 +49,14 @@ public class Program
         // for each note sequence, compare it to all other note sequences
         // rank the similarity of each sequence, based on note timing overlap
         // bucket the sequences by similarity
-        
-        
+
+
         List<List<int>> similarityBucketIndices = [];
         for (int i = 0; i < noteSequenceByMeasure.Count; i++)
         {
             // skip sequence that has already been bucketed
             if (similarityBucketIndices.Any(x => x.Contains(i))) continue;
-            
+
             Dictionary<int, long> similarityRankings = [];
             for (int j = i + 1; j < noteSequenceByMeasure.Count; j++)
             {
@@ -151,7 +83,7 @@ public class Program
                     bucketIndices.Add(entry.Key);
                 }
             }
-            
+
             // if any one of the indices are already in a bucket, merge the buckets with only distinct indices
             bool foundBucket = false;
             for (int k = 0; k < similarityBucketIndices.Count; k++)
@@ -163,7 +95,7 @@ public class Program
                     break;
                 }
             }
-            
+
             // if no bucket was found, create a new bucket
             if (!foundBucket)
             {

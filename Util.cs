@@ -106,46 +106,7 @@ public static class Util
         return score;
     }
 
-    public static List<Tuple<long, long>> ExtractMeasures(MidiFile midiFile)
-    {
-        // Assume 4/4 time signature if not specified
-        int numerator = 4;
-        int denominator = 4;
 
-        // Ticks per quarter note
-        int ticksPerQuarterNote = midiFile.DeltaTicksPerQuarterNote;
-
-        // List to hold start and end times of each measure in ticks
-        List<Tuple<long, long>> measures = [];
-
-        // Iterate through the MIDI events
-        foreach (IList<MidiEvent>? track in midiFile.Events)
-        {
-            int currentMeasure = 0;
-            int ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
-
-            foreach (MidiEvent midiEvent in track)
-            {
-                if (midiEvent is TimeSignatureEvent ts)
-                {
-                    numerator = ts.Numerator;
-                    denominator = (int)Math.Pow(2, ts.Denominator);
-                    ticksPerMeasure = ticksPerQuarterNote * numerator * 4 / denominator;
-                }
-
-                // Check if we reached the end of the measure
-                if (midiEvent.AbsoluteTime / ticksPerMeasure > currentMeasure)
-                {
-                    long measureStartTime = currentMeasure * ticksPerMeasure;
-                    long measureEndTime = (currentMeasure + 1) * ticksPerMeasure;
-                    measures.Add(new Tuple<long, long>(measureStartTime, measureEndTime));
-                    currentMeasure++;
-                }
-            }
-        }
-
-        return measures;
-    }
 
     public static List<NoteOnEvent> NotesInAMeasure(List<NoteOnEvent> allNotes, long startTick, long endTick)
     {
