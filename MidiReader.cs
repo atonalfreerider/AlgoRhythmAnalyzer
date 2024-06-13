@@ -66,7 +66,7 @@ public class MidiReader(string midiFilePath)
             string instrument;
             if (trackEvents.FirstOrDefault() is TextEvent textEvent)
             {
-                instrument = textEvent.Text;
+                instrument = $"{trackIndex}:{textEvent.Text}";
                 if (textEvent.Text.Contains("drum", StringComparison.InvariantCultureIgnoreCase) ||
                     trackEvents.Any(x => x.Channel == 10))
                 {
@@ -91,18 +91,21 @@ public class MidiReader(string midiFilePath)
             }
         }
 
-        return new Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>>(drumEvents, otherEventsByInstrument);
+        return new Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>>(
+            drumEvents,
+            otherEventsByInstrument);
     }
 
     static void InsertToDictionary(
-        string instrument, 
-        Dictionary<string, List<NoteOnEvent>> eventsByInstrument, 
+        string instrument,
+        Dictionary<string, List<NoteOnEvent>> eventsByInstrument,
         IList<MidiEvent> trackEvents)
     {
-        if (!eventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value))
+        eventsByInstrument.TryGetValue(instrument, out List<NoteOnEvent>? value);
+        if (value == null)
         {
             value = [];
-            eventsByInstrument[instrument] = value;
+            eventsByInstrument.Add(instrument, value);
         }
 
         foreach (MidiEvent trackEvent in trackEvents)
@@ -112,5 +115,8 @@ public class MidiReader(string midiFilePath)
                 value.Add(noteOnEvent);
             }
         }
+
+        value = value.OrderBy(x => x.AbsoluteTime).ToList();
+        eventsByInstrument[instrument] = value;
     }
 }

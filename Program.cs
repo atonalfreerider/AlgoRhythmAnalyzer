@@ -20,31 +20,34 @@ public class Program
         Dictionary<string, List<List<int>>> drumPatterns = [];
         foreach (KeyValuePair<string, List<NoteOnEvent>> entry in drumEvents)
         {
+            if (entry.Value.Count == 0) continue;
+
             List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
             drumPatterns[entry.Key] = patterns;
         }
-        
+
         Dictionary<string, List<List<int>>> otherPatternsByInstrument = [];
         foreach (KeyValuePair<string, List<NoteOnEvent>> entry in otherEventsByInstrument)
         {
+            if (entry.Value.Count == 0) continue;
+
             List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
             otherPatternsByInstrument[entry.Key] = patterns;
         }
 
         string parentDirectory = Path.GetDirectoryName(args[0]);
-        string midiFileWithoutExtension = Path.GetFileNameWithoutExtension(args[0]);
 
         // serialize the patterns to JSON with Newtonsoft
         string drumPatternsJson = JsonConvert.SerializeObject(drumPatterns, Formatting.Indented);
         File.WriteAllText(
-            Path.Combine(parentDirectory, midiFileWithoutExtension + "-drum-patterns.json"),
+            Path.Combine(parentDirectory, "drum-patterns.json"),
             drumPatternsJson);
 
         string otherPatternsByInstrumentJson =
             JsonConvert.SerializeObject(otherPatternsByInstrument, Formatting.Indented);
 
         File.WriteAllText(
-            Path.Combine(parentDirectory, midiFileWithoutExtension + "-inst-patterns.json"),
+            Path.Combine(parentDirectory, "inst-patterns.json"),
             otherPatternsByInstrumentJson);
 
         Console.WriteLine($"Wrote to {parentDirectory}");
@@ -54,14 +57,15 @@ public class Program
     {
         // gather each note sequence by measure, by determining if the note start time is within the measure start and end times
         List<List<NoteOnEvent>> noteSequenceByMeasure = [];
-        noteSequenceByMeasure.AddRange(measures.Select(measure =>
-            Util.NotesInAMeasure(events, measure.Item1, measure.Item2)));
+        foreach (Tuple<long,long> measure in measures)
+        {
+            List<NoteOnEvent> notesInMeasure = Util.NotesInAMeasure(events, measure.Item1, measure.Item2);
+            noteSequenceByMeasure.Add(notesInMeasure);
+        }
 
         // for each note sequence, compare it to all other note sequences
         // rank the similarity of each sequence, based on note timing overlap
         // bucket the sequences by similarity
-
-
         List<List<int>> similarityBucketIndices = [];
         for (int i = 0; i < noteSequenceByMeasure.Count; i++)
         {

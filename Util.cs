@@ -64,31 +64,38 @@ public static class Util
         }
     }
 
-    public static int CalculateSimilarity(List<NoteOnEvent> set1, List<NoteOnEvent> set2, long measure1Start, long measure2Start)
+    public static int CalculateSimilarity(
+        List<NoteOnEvent> set1, 
+        List<NoteOnEvent> set2, 
+        long measure1Start,
+        long measure2Start)
     {
         int score = 0;
         HashSet<int> matchedIndices = [];
 
         foreach (NoteOnEvent event1 in set1)
         {
-            if(event1.OffEvent == null) continue;
-            
-            long event1Start = event1.AbsoluteTime - measure1Start;
-            long event1End = event1.OffEvent.AbsoluteTime - measure1Start;
+            if (event1.OffEvent == null) continue;
+
+            int event1Start = (int)(event1.AbsoluteTime - measure1Start);
+            int event1End = (int)(event1.OffEvent.AbsoluteTime - measure1Start);
+            int event1Duration = event1End - event1Start;
+            int margin = (int)Math.Round(event1Duration * 0.1f); // 10% margin of error for start and end times
+
             bool matchFound = false;
             for (int i = 0; i < set2.Count; i++)
             {
                 if (matchedIndices.Contains(i)) continue;
-                
+
                 NoteOnEvent event2 = set2[i];
-                
-                if(event2.OffEvent == null) continue;
-                
-                long event2Start = event2.AbsoluteTime - measure2Start;
-                long event2End = event2.OffEvent.AbsoluteTime - measure2Start;
-                if (event1Start == event2Start && event1End == event2End)
+
+                if (event2.OffEvent == null) continue;
+
+                long event2Start = (int)(event2.AbsoluteTime - measure2Start);
+                long event2End = (int)(event2.OffEvent.AbsoluteTime - measure2Start);
+                if (Math.Abs(event1Start - event2Start) < margin && Math.Abs(event1End - event2End) < margin)
                 {
-                    int eventLength = (int) (event1End - event1Start);
+                    int eventLength = event1End - event1Start;
                     score += eventLength;
                     matchedIndices.Add(i);
                     matchFound = true;
@@ -98,7 +105,7 @@ public static class Util
 
             if (!matchFound)
             {
-                int eventLength = (int)(event1End - event1Start);
+                int eventLength = event1End - event1Start;
                 score -= eventLength;
             }
         }
