@@ -4,6 +4,15 @@ using Newtonsoft.Json;
 
 public class Program
 {
+    class Pattern
+    {
+        public string TrackName;
+        public int TrackNumber;
+        public List<Tuple<int, int>> BaseTimingPattern;
+        public List<int> MasterPattern;
+        public List<List<int>> NoteVariationPatterns;
+    }
+    
     public static void Main(string[] args)
     {
         string midiPath = args[0];
@@ -13,18 +22,10 @@ public class Program
 
         List<Tuple<long, long>> measures = midiReader.ExtractMeasures();
 
-        (Dictionary<string, List<NoteOnEvent>> drumEvents,
-                Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument) =
+        (List<NoteOnEvent> drumEvents, Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument) =
             midiReader.ReadDrumAndInst();
 
-        Dictionary<string, List<List<int>>> drumPatterns = [];
-        foreach (KeyValuePair<string, List<NoteOnEvent>> entry in drumEvents)
-        {
-            if (entry.Value.Count == 0) continue;
-
-            List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
-            drumPatterns[entry.Key] = patterns;
-        }
+        List<List<int>> drumPatterns = GeneratePatterns(drumEvents, measures);
 
         Dictionary<string, List<List<int>>> otherPatternsByInstrument = [];
         foreach (KeyValuePair<string, List<NoteOnEvent>> entry in otherEventsByInstrument)
@@ -34,21 +35,26 @@ public class Program
             List<List<int>> patterns = GeneratePatterns(entry.Value, measures);
             otherPatternsByInstrument[entry.Key] = patterns;
         }
+        
+        List<Pattern> finalDrumPatterns = FinalPatterns(drumPatterns, measures, drumEvents, "Drums", 10);
+        
+        Dictionary<string, List<Pattern>> finalOtherPatternsByInstrument = [];
+        foreach (KeyValuePair<string,List<List<int>>> keyValuePair in otherPatternsByInstrument)
+        {
+            List<Pattern> finalPatterns = FinalPatterns(keyValuePair.Value, measures, otherEventsByInstrument[keyValuePair.Key], keyValuePair.Key, 0);
+            finalOtherPatternsByInstrument[keyValuePair.Key] = finalPatterns;
+        }
+       
 
+        // TODO determine overall chord progressions
+        
         string parentDirectory = Path.GetDirectoryName(args[0]);
 
-        // serialize the patterns to JSON with Newtonsoft
-        string drumPatternsJson = JsonConvert.SerializeObject(drumPatterns, Formatting.Indented);
-        File.WriteAllText(
-            Path.Combine(parentDirectory, "drum-patterns.json"),
-            drumPatternsJson);
-
-        string otherPatternsByInstrumentJson =
-            JsonConvert.SerializeObject(otherPatternsByInstrument, Formatting.Indented);
-
-        File.WriteAllText(
-            Path.Combine(parentDirectory, "inst-patterns.json"),
-            otherPatternsByInstrumentJson);
+        string patternJson = JsonConvert.SerializeObject(finalDrumPatterns, Formatting.Indented);
+        File.WriteAllText($"{parentDirectory}/drum-patterns.json", patternJson);
+        
+        string otherPatternJson = JsonConvert.SerializeObject(finalOtherPatternsByInstrument, Formatting.Indented);
+        File.WriteAllText($"{parentDirectory}/other-patterns.json", otherPatternJson);
 
         Console.WriteLine($"Wrote to {parentDirectory}");
     }
@@ -125,5 +131,79 @@ public class Program
         }
 
         return similarityBucketIndices;
+    }
+
+    static List<Pattern> FinalPatterns(
+        List<List<int>> instPatterns, 
+        List<Tuple<long, long>> measures, 
+        List<NoteOnEvent> events, 
+        string trackName, 
+        int trackNumber)
+    {
+         // categorize versions within the patterns, group identical versions, create a master pattern for variation changes (ie chord progression)
+        List<Pattern> finalPatterns = [];
+        foreach (List<int> instPattern in instPatterns)
+        {
+            // take the fist version 
+            Tuple<long, long> firstMeasure = measures[instPattern.First()];
+            List<NoteOnEvent> firstMeasureNotes = Util.NotesInAMeasure(events, firstMeasure.Item1, firstMeasure.Item2);
+
+            // capture the base timing for all versions
+            List<Tuple<int, int>> baseTimingPattern = [];
+            foreach (NoteOnEvent note in firstMeasureNotes)
+            {
+                baseTimingPattern.Add(new Tuple<int, int>(
+                    (int)(note.AbsoluteTime - firstMeasure.Item1),
+                    (int)(note.OffEvent.AbsoluteTime - firstMeasure.Item1)));
+            }
+
+            // capture the variation pitches for this pattern
+            List<List<int>> noteVariationPatterns = [];
+            List<int> masterPattern = [];
+            int lastMeasureIndex = 0;
+            foreach (int measureIndex in instPattern)
+            {
+                while (lastMeasureIndex < measureIndex - 1)
+                {
+                    lastMeasureIndex++;
+                    masterPattern.Add(-1);
+                }
+                
+                Tuple<long, long> measure = measures[measureIndex];
+                List<NoteOnEvent> notes = Util.NotesInAMeasure(events, measure.Item1, measure.Item2);
+                List<int> notePattern = notes.Select(x => x.NoteNumber).ToList();
+                bool matched = false;
+                foreach (List<int> prevPattern in noteVariationPatterns.ToList())
+                {
+                    if(notePattern.SequenceEqual(prevPattern))
+                    {
+                        masterPattern.Add(noteVariationPatterns.IndexOf(prevPattern));
+                        matched = true;
+                        break;
+                    }
+                }
+                
+                if (!matched)
+                {
+                    masterPattern.Add(noteVariationPatterns.Count);
+                    noteVariationPatterns.Add(notePattern);
+                }
+
+                lastMeasureIndex = measureIndex;
+            }
+            
+            Pattern pattern = new Pattern
+            {
+                TrackName = trackName,
+                TrackNumber = trackNumber,
+                BaseTimingPattern = baseTimingPattern,
+                MasterPattern = masterPattern,
+                NoteVariationPatterns = noteVariationPatterns
+            };
+            
+            finalPatterns.Add(pattern);
+        }
+
+        return finalPatterns;
     }
 }

@@ -55,9 +55,9 @@ public class MidiReader(string midiFilePath)
         return measures;
     }
 
-    public Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>> ReadDrumAndInst()
+    public Tuple<List<NoteOnEvent>, Dictionary<string, List<NoteOnEvent>>> ReadDrumAndInst()
     {
-        Dictionary<string, List<NoteOnEvent>> drumEvents = [];
+        List<NoteOnEvent> drumEvents = [];
         Dictionary<string, List<NoteOnEvent>> otherEventsByInstrument = [];
         for (int trackIndex = 0; trackIndex < midiFile.Events.Count(); trackIndex++)
         {
@@ -70,7 +70,13 @@ public class MidiReader(string midiFilePath)
                 if (textEvent.Text.Contains("drum", StringComparison.InvariantCultureIgnoreCase) ||
                     trackEvents.Any(x => x.Channel == 10))
                 {
-                    InsertToDictionary(instrument, drumEvents, trackEvents);
+                    foreach (MidiEvent trackEvent in trackEvents)
+                    {
+                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
+                        {
+                            drumEvents.Add(noteOnEvent);
+                        }
+                    }
                 }
                 else
                 {
@@ -82,7 +88,14 @@ public class MidiReader(string midiFilePath)
                 instrument = trackEvents.FirstOrDefault().Channel.ToString();
                 if (trackEvents.Any(x => x.Channel == 10))
                 {
-                    InsertToDictionary(instrument, drumEvents, trackEvents);
+                    foreach (MidiEvent trackEvent in trackEvents)
+                    {
+                        if (trackEvent is NoteOnEvent { Velocity: > 0 } noteOnEvent)
+
+                        {
+                            drumEvents.Add(noteOnEvent);
+                        }
+                    }
                 }
                 else
                 {
@@ -91,7 +104,7 @@ public class MidiReader(string midiFilePath)
             }
         }
 
-        return new Tuple<Dictionary<string, List<NoteOnEvent>>, Dictionary<string, List<NoteOnEvent>>>(
+        return new Tuple<List<NoteOnEvent>, Dictionary<string, List<NoteOnEvent>>>(
             drumEvents,
             otherEventsByInstrument);
     }
